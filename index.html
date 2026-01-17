@@ -56,7 +56,7 @@
   以下のブロックは Javascriptです。
   上のHTML Bodyで'id'を指定した指示した部分の値を読み取ったり、文字を埋め込んだりできます。
   大まかに何をしているかつかめれば、細かい部分は気にしなくても大丈夫です。
-  分析結果を受け取る部分が未完成なので、【タスク2】で修正してください。
+  分析結果を受け取る部分が未完成なので、タスク2の部分を修正してください。
 -->
 
   <script>
@@ -110,10 +110,17 @@
       //            POSTではなく、GETで送ることに注意してね。
       //
       //       ヒント:  const res = await fetch(`ここにURLを指定してね`); 
-      //      
- 
-      const analyzed_data = await res.json();
+      //
 
+      // ユーザー名を取得
+      user = userData.value
+
+      // リクエストを送る
+      const res = await fetch(`/analyze?user=${user}`, {
+        method: "GET",
+      });
+
+      const analyzed_data = await res.json();
       // 画面に合計結果を表示
       resultData.textContent = analyzed_data.message;
     });
