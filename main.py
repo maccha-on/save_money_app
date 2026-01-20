@@ -4,11 +4,24 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 import csv
 
+# v3で追加
+from openai import OpenAI
+from dotenv import load_dotenv
+import os
+
 # =========================
 # FAST APIの起動設定
 # =========================
 CSV_PATH = "data.csv"
 app = FastAPI()
+
+# v3で追加
+# =========================
+# ChatGPT API_KEYの設定
+# =========================
+
+load_dotenv()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ================================================================
 # 画面（index.html）を返す設定
@@ -63,6 +76,10 @@ def analyze_user( user: str = Query(..., description="ユーザー名")):
     # MEMO：30日間のデータを返すための日付を取得
     # before_7day = datetime.now() - timedelta(days=30)
 
+		# v3で追加
+    if user == '':
+        return {"message": "ユーザー名を入れてください"}
+
     # 合計金額
     total_money = 0
 
@@ -95,6 +112,28 @@ def analyze_user( user: str = Query(..., description="ユーザー名")):
     #   data_txtの内容などを利用しながら、OPENAI(Chat GPT) APIに送り、分析結果を取得してください。
     #   プロンプトも色々と工夫してみてください。
     # 
+
+		# v3で追加
+    monthly_budget_goal = 20000 # 仮の目標額
+    response = client.responses.create(
+        model = "gpt-4.1-mini",
+        instructions="""
+        あなたは20年以上の経験を持つ優秀なファイナンシャルプランナーです。
+        ユーザーの目標を達成するために必要な厳しい指導を具体的に提示してください。
+        * 分析内容
+        - 目標支出金額と現在の支出額を比較し、目標とどれだけ差があるか確認する
+        - 目標からオーバーしてしまった場合は、かなり辛口で指導する
+        - 目標から遠い場合も厳しく指導する
+
+        * トーン
+        - 全体的に厳しい口調でユーザーに接する
+        - 忖度なしで意見を述べる
+        """,
+        input=f"""
+        目標支出額{monthly_budget_goal}に対して、今月{total_money}円使用しています。
+        目標支出額内に抑えられるための具体例を3つ提示してください。
+        """
+    )
 
     result = data_txt  # 今はCSVデータをそのまま返しているだけ
 
