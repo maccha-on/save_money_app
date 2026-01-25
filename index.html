@@ -7,19 +7,18 @@
     <title>C5 Wallet</title>
 </head>
 
-<!--
-  以下のブロックは HTMLのBody部分です。家計簿ミニアプリのHTMLファイルです。
-  一度、ブラウザで表示してみてください。
-
-  【タスク1】 LPで学んだ知識をもとに、デザインなど編集してみてください。
-
-  -->
 <body>
   <class="container">
    <h1>C5 Wallet</h1>
+
     <div class="form-group">
         <label>ユーザー名</label>
-        <input type="text" id="user" placeholder="例：リジチョー">
+        <input type="text" id= "user" placeholder="例：リジチョー">
+    </div>
+
+    <div class="form-group">
+        <label>日付</label>
+        <input type="date" id="entry-date" />
     </div>
 
     <div class="form-group">
@@ -29,34 +28,37 @@
 
     <div class="form-group">
         <label>金額</label>
-        <input type="text" id="price" placeholder="例：500">
-    </div>
-
-    <div class="form-group">
-        <label>予算</label>
-        <input type="text" placeholder="例：30000">
+        <input type="number" id="price" class="no-spin" placeholder="例：500">
     </div>
 
   <!--
     「送信」: 入力した user/item/price を FastAPI に送って、CSVに保存してもらう
-    「分析」: user を送って、合計金額を計算してもらう
   -->
   <div class="button-area">
     <button id="sendBtn">記録して送信</button>
     <button id="historyBtn">履歴を見る</button>
-  </div>  
+  </div>
 
   <hr>
-  
+
+    <!--
+    「分析」: user を送って、合計金額を計算してもらう
+  -->
+
   <div class="analysis-section">
     <h2>AIコーチング分析</h2>
+    <p>ユーザー名と予算を入力してください</p>
+
+    <div class="form-group">
+        <label>予算</label>
+        <input type="number" id="budget" placeholder="例：30000">
+    </div>
+
     <div class="coach-buttons">
       <button id="analyze-oniBtn">👺鬼コーチ</button>
       <button id="analyze-tenshiBtn">👼天使コーチ</button>
     </div>
   </div>
-    
-  
 
   <!-- 
     APIの結果（メッセージ）を表示する場所
@@ -67,15 +69,6 @@
       </div>
     </div>
 
-
-
-<!--
-  以下のブロックは Javascriptです。
-  上のHTML Bodyで'id'を指定した指示した部分の値を読み取ったり、文字を埋め込んだりできます。
-  大まかに何をしているかつかめれば、細かい部分は気にしなくても大丈夫です。
-  分析結果を受け取る部分が未完成なので、タスク2の部分を修正してください。
--->
-
   <script>
     // ---------------------------
     // 1) HTML要素を取得する
@@ -85,6 +78,8 @@
     const itemData = document.getElementById("item");
     const priceData = document.getElementById("price");
     const resultData = document.getElementById("result");
+    const budgetData = document.getElementById("budget");
+    const entryDateData = document.getElementById("entry-date");
 
     // ---------------------------
     // 2) 「送信」ボタンの処理
@@ -94,10 +89,16 @@
       // 入力値をJSONとしてまとめます（FastAPIへ送るデータ）
       // price は文字列ではなく数値として送りたいので Number(...) で変換します。
       const body = {
-        user: userData.value,
-        item: itemData.value,
+        user: userData.value.trim(),
+        item: itemData.value.trim(),
         price: Number(priceData.value),
+        entryDate: entryDateData.value
       };
+
+      if (body.user === '' || body.item === '' || body.price === 0 || entryDateData.value === '') {
+        alert('入力項目が不足しています');
+        return false;
+      }
 
       // fetch() で FastAPI にリクエストを送ります。
       // method: "POST" でPOST送信
@@ -112,28 +113,47 @@
       // FastAPIから返ってくるJSON（例: {"message": "..."}）を読む
       const json_data = await res.json();
 
-      // 画面に結果メッセージを表示
       resultData.textContent = json_data.message;
     });
 
-
     // ---------------------------
-    // 3) 「分析」ボタンの処理
+    // 3) 「鬼コーチ」ボタンの処理
     // ---------------------------
-    document.getElementById("analyzeBtn").addEventListener("click", async () => {
-
-      //
-      // 【タスク2】 変数resに、FAST APIから取得した分析結果を入れるよう修正してください。
-      //            POSTではなく、GETで送ることに注意してね。
-      //
-      //       ヒント:  const res = await fetch(`ここにURLを指定してね`); 
-      //
+    document.getElementById("analyze-oniBtn").addEventListener("click", async () => {
 
       // ユーザー名を取得
-      user = userData.value
+      user = userData.value.trim();
+      budget = Number(budgetData.value);
+      if (user === '' || budget === 0) {
+        alert('入力項目が不足しています');
+        return false;
+      }
 
       // リクエストを送る
-      const res = await fetch(`/analyze?user=${user}`, {
+      const res = await fetch(`/analyze?user=${user}&coach=oni&budget=${budget}`, {
+        method: "GET",
+      });
+
+      const analyzed_data = await res.json();
+      // 画面に合計結果を表示
+      resultData.innerText = analyzed_data.message;
+    });
+
+    // ---------------------------
+    // 3) 「天使コーチ」ボタンの処理
+    // ---------------------------
+    document.getElementById("analyze-tenshiBtn").addEventListener("click", async () => {
+
+      // ユーザー名を取得
+      user = userData.value;
+      budget = Number(budgetData.value);
+      if (user === '' || budget === 0) {
+        alert('入力項目が不足しています');
+        return false;
+      }
+
+      // リクエストを送る
+      const res = await fetch(`/analyze?user=${user}&coach=tenshi&budget=${budget}`, {
         method: "GET",
       });
 
@@ -141,7 +161,26 @@
       // 画面に合計結果を表示
       resultData.textContent = analyzed_data.message;
     });
-  </script>
+
+    // ---------------------------
+    // 3) 「履歴を見る」ボタンの処理
+    // ---------------------------
+    document.getElementById("historyBtn").addEventListener("click", async () => {
+      user = userData.value.trim();
+
+      if (user === '') {
+        alert('ユーザー名を入力してください');
+      }
+      // リクエストを送る
+      const res = await fetch(`/history?user=${user}`, {
+        method: "GET",
+      });
+
+      const history_data = await res.json();
+      // 画面に結果メッセージを表示
+      const history_message = history_data.history.join("");
+      resultData.innerText = "合計金額" + history_data.total_money + "\n" + history_message;
+    })
+</script>
 </body>
 </html>
-

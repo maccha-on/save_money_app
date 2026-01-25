@@ -1,27 +1,26 @@
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from datetime import datetime, timedelta
-import csv
-
-# v3で追加
 from openai import OpenAI
-from dotenv import load_dotenv
-import os
+import pandas as pd
+import psycopg
+from pydantic import BaseModel
+
 
 # =========================
 # FAST APIの起動設定
 # =========================
-CSV_PATH = "data.csv"
 app = FastAPI()
 
-# v3で追加
 # =========================
-# ChatGPT API_KEYの設定
+# .envの設定
 # =========================
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # ================================================================
 # 画面（index.html）を返す設定
@@ -31,6 +30,10 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 def root():
     return FileResponse("index.html")
 
+@app.get("/style.css")
+def get_style():
+	return FileResponse("style.css")
+
 # =============================
 # データ登録(add)のJSON形式を規定
 # =============================
@@ -38,6 +41,56 @@ class AddRequest(BaseModel):
     user: str
     item: str
     price: int
+    entryDate: str
+
+# =========================
+# supabaseに入力内容を保存
+# =========================
+
+def save_to_db(req: AddRequest):
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            # idは指定しない（DBに任せる）
+            cur.execute(
+                "INSERT INTO public.c5wallet_rireki (username, item, price, date) VALUES (%s, %s, %s, %s) returning id;",
+                (req.user, req.item, req.price, req.entryDate)
+            )
+            new_id = cur.fetchone()[0]
+            conn.commit()
+
+# =========================
+# supabaseから履歴を取得＆pandas DataFrameとして読み込み
+# =========================
+
+# userの全データと合計金額を取得する
+def get_from_db(user: str):
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM c5wallet_rireki WHERE username = %s',(user,))
+            df = pd.DataFrame(cur.fetchall(), columns=[col.name for col in cur.description])
+            cur.execute('SELECT SUM(price) FROM c5wallet_rireki WHERE username = %s',(user,))
+            total_money_from_db = cur.fetchone()[0] or 0
+    return df, total_money_from_db
+
+# userの今月のデータと合計金額を取得する
+def get_this_month_data_from_db(user: str):
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT price,date,item FROM c5wallet_rireki
+                WHERE username = %s AND (date >= date_trunc('month', CURRENT_DATE) AND date < date_trunc('month', CURRENT_DATE) + interval '1 month');
+            """,
+                (user,)
+            )
+            df = pd.DataFrame(cur.fetchall(), columns=[col.name for col in cur.description])
+            cur.execute("""
+                SELECT SUM(price) FROM c5wallet_rireki
+                WHERE username = %s AND (date >= date_trunc('month', CURRENT_DATE) AND date < date_trunc('month', CURRENT_DATE) + interval '1 month');
+                """,
+                (user,)
+            )
+            total_money_from_db = cur.fetchone()[0] or 0
+    return df, total_money_from_db
 
 # =========================
 # 追加（保存）API：POST /add
@@ -47,94 +100,97 @@ class AddRequest(BaseModel):
 def add_record(req: AddRequest):
     print(f"ADDサービスが受け取ったreqデータ:\n {req}") # データ確認用
 
-    # 
-    # 【タスク3】データの書き込み
-    #   CSVファイルにデータを追記してください。
-    #     ヒント1: requestの各値は req.user, req.item, req.price で取れます。 
-    #     ヒント2: 今日の日付は、datetime.now().date() で取得できます。
-    #     ヒント3: CSVファイルは、次のようにすると追記モードで開けます。
-    #       with open(CSV_PATH, "a", newline="", encoding="utf-8") as f:
-    #
-
-    # 今日の日付を取得
-    timestamp = datetime.now().strftime('%Y-%m-%d')
-
-    # CSVに保存する
-    with open(CSV_PATH, "a", newline="", encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow([req.user, timestamp, req.item, req.price])
+    # supabaseに保存する
+    save_to_db(req)
 
     # ブラウザに返すメッセージ（JSON）
     return {"message": f"{req.user} さんの{req.item}を保存しました"}
 
+# =====================
+# 履歴API：GET /history
+# =====================
+@app.get("/history")
+def analyze_user(user: str = Query(..., description="ユーザー名")):
+    # データ取得
+    df, total_money_from_db = get_from_db(user)
+    # 空なら
+    if df.empty:
+        return {
+            "message": "データを取得しました",
+            "total_money": 0,
+            "history": ["データがありませんでした"],
+        }
+    # データがあれば返す
+    history = []
+    for index,row in df.iterrows():
+        history.append(f"{row['date'].strftime('%Y-%m-%d')} : {row['item']} : {row['price']}円\n")
+    return {
+        "message": "データを取得しました",
+        "total_money": total_money_from_db,
+        "history": history,
+    }
 
 # =====================
 # 分析API：GET /analyze
 # =====================
 @app.get("/analyze")
-def analyze_user( user: str = Query(..., description="ユーザー名")):
-    # MEMO：30日間のデータを返すための日付を取得
-    # before_7day = datetime.now() - timedelta(days=30)
-
-		# v3で追加
+def analyze_user(user: str = Query(..., description="ユーザー名"),
+                coach: str = Query(..., description="コーチの種類"),
+                budget: int = Query(..., description="予算")):
+    # v3で追加
     if user == '':
         return {"message": "ユーザー名を入れてください"}
+    if budget == 0:
+        return {"message": "予算を入力してください"}
 
-    # 合計金額
-    total_money = 0
+    # Supabaseから合計金額を取得
+    df, total_money = get_this_month_data_from_db(user)
 
-    # ====== 該当ユーザーのデータをCSVから抽出 ======
-    data_txt = "user,timestamp,item,price\n" # データを入れる
-    with open(CSV_PATH, "r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)                # CSVを辞書形式で読む
-        for row in reader:
-            print(row)                       # CSVを1行ずつ読む
-            if row["user"] != user: # 指定ユーザー以外はスキップ
-                continue
-            # MEMO:一旦コメントアウト（30日前までのデータは省く）
-            # date = datetime.strptime(row["timestamp"], "%Y-%m-%d")
-            # if date <= before_7day:
-            #     continue
-            # data_txt に行の内容を付け足し
-            data_txt += f'{row["user"]},{row["timestamp"]},{row["item"]},{row["price"]}\n'
-            # 合計金額を足す
-            total_money = total_money + int(row["price"])
-    # 
-    # 【タスク4】データの計算
-    #     現在は、該当ユーザーのデータを全部引っ張ってきています。
-    #     1週間や1か月など、集計する期間のデータを抽出してください。
-    #     * 合計額なども計算するといいかもですね。
-    # 
-    print('data_txtの内容', data_txt) # 確認・デバッグ用
+    if df.empty:
+        return {
+            "message": f"{user}さんのデータはありません",
+        }
 
-    # 
-    # 【タスク5】（最難関） 生成AI APIの利用
-    #   data_txtの内容などを利用しながら、OPENAI(Chat GPT) APIに送り、分析結果を取得してください。
-    #   プロンプトも色々と工夫してみてください。
-    # 
+    # コーチによってプロンプトを変更
+    if coach == "oni":
+        prompt = """
+            あなたは20年以上の経験を持つ優秀なファイナンシャルプランナーです。
+            ユーザーの目標を達成するために必要な厳しい指導を具体的に提示してください。
+            * 分析内容
+            - 目標支出金額と現在の支出額を比較し、目標とどれだけ差があるか確認する
+            - 目標からオーバーしてしまった場合は、かなり辛口で指導する
+            - 目標から遠い場合も厳しく指導する
 
-		# v3で追加
-    monthly_budget_goal = 20000 # 仮の目標額
+            * トーン
+            - 全体的に厳しい口調でユーザーに接する
+            - 忖度なしで意見を述べる
+        """
+    else:
+        prompt = """
+            あなたは20年以上の経験を持つ優秀なファイナンシャルプランナーです。
+            ユーザーの目標を達成するためにポジティブに甘やかす指導を具体的に提示してください。
+            * 分析内容
+            - 目標支出金額と現在の支出額を比較し、目標とどれだけ差があっても攻めたりはしない
+            - 目標から適切な支出ペースの場合は、かなり甘口で褒める
+            - 目標からオーバーしてしまった場合は、かなり甘口で励ます
+            - 目標から遠い場合も優しく指導する
+            - ただし、生活の質は落とさないように、我慢や制限を強制しないでください
+
+            * トーン
+            - 全体的に甘い口調でユーザーに接する
+            - 忖度なしで甘い意見を述べる
+        """
+
+    # AIに指示
     response = client.responses.create(
         model = "gpt-4.1-mini",
-        instructions="""
-        あなたは20年以上の経験を持つ優秀なファイナンシャルプランナーです。
-        ユーザーの目標を達成するために必要な厳しい指導を具体的に提示してください。
-        * 分析内容
-        - 目標支出金額と現在の支出額を比較し、目標とどれだけ差があるか確認する
-        - 目標からオーバーしてしまった場合は、かなり辛口で指導する
-        - 目標から遠い場合も厳しく指導する
-
-        * トーン
-        - 全体的に厳しい口調でユーザーに接する
-        - 忖度なしで意見を述べる
-        """,
+        instructions=prompt,
         input=f"""
-        目標支出額{monthly_budget_goal}に対して、今月{total_money}円使用しています。
-        目標支出額内に抑えられるための具体例を3つ提示してください。
+            目標支出額{budget}に対して、今月{total_money}円使用しています。
+            目標支出額内に抑えられるための具体例を3つ提示してください。
+            参考：支出履歴
+            {df}
         """
     )
 
-    result = data_txt  # 今はCSVデータをそのまま返しているだけ
-
-    return {"message": f"{user} の分析結果:\n {total_money}"}
+    return {"message": f"{user} の分析結果:\n {total_money}\nAIの回答{response.output_text}"}
