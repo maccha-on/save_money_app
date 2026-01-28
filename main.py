@@ -95,7 +95,7 @@ def get_this_month_data_from_db(user: str):
 # =========================
 # 追加（保存）API：POST /add
 # =========================
-# ブラウザから送られたデータを、CSVに1行追加します。
+
 @app.post("/add")
 def add_record(req: AddRequest):
     print(f"ADDサービスが受け取ったreqデータ:\n {req}") # データ確認用

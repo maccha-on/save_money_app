@@ -1,144 +1,146 @@
-
+/* 基本設定：背景を白に */
 body {
     background-color: #ffffff;
-    /* デバイスに合わせたフォント設定 */
-    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
     margin: 0;
     padding: 20px;
-    /* 画面の真ん中に寄せたい */
     display: flex;
     justify-content: center;
+    transition: background-color 0.3s ease;
 }
 
-/* body */
+/* メインコンテナ：浮かび上がる演出 */
 .container {
     width: 100%;
-    max-width: 400px; /* スマホ用 */
-    padding: 30px;
-    border-radius: 20px; /* 角を取りたい */
+    max-width: 340px; /* スマホサイズ維持 */
+    padding: 30px 20px;
+    box-sizing: border-box;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* 各項目と入力フォーム*/
+.container:hover {
+    transform: translateY(-5px); /* マウスオーバーで少し上に */
+}
+
 h1 {
     text-align: center;
-    font-size: 50px;
-    margin-top: 0;
-    margin-bottom: 15px;
-    font-weight: 500;
+    font-size: 32px;
+    margin-bottom: 25px;
+    font-weight: 800;
 }
 
-/* フォームの感覚を狭く*/
+/* 入力エリアの共通スタイル */
 .form-group {
-    margin-bottom: 5px;
+    margin-bottom: 15px;
 }
-/*　項目の文字 */
+
 label {
-    display: block;/*　項目と入力を改行するため */
-    font-size: 14px;
+    display: block;
+    font-size: 13px;
     font-weight: bold;
-    margin-bottom: 3px;
-    color: #000000;
+    margin-bottom: 5px;
+    color: #333;
 }
 
-/* 入力欄のデザイン */
-input[type="text"] {
+input {
     width: 100%;
-    padding: 15px;
-    background-color: #e0e0e0;
+    padding: 12px 15px;
+    background-color: #f1f3f5;
     border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    box-sizing: border-box; /* ズレ防止に良いらしい */
+    border-radius: 12px;
+    font-size: 15px;
+    box-sizing: border-box;
+    transition: background-color 0.2s;
 }
 
-#sendBtn, 
-.coach-buttons button, 
-#historyBtn:hover
-{
+input:focus {
+    background-color: #e9ecef;
+    outline: none;
+}
+
+/* ★予算の横並び設定 */
+.flex-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+}
+
+.flex-row label {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+#budget {
+    width: 140px;
+    flex: none;
+    text-align: center;
+}
+
+/* ボタン設定 */
+button {
+    cursor: pointer;
     transition: all 0.2s ease;
 }
 
-#sendBtn:hover, 
-.coach-buttons button:hover, 
-#historyBtn:hover
-{
-    transform: translateY(-3px); /* 4ピクセル上に移動 */
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2); /* 影 */
+button:hover {
+    filter: brightness(1.1);
+    transform: translateY(-2px); /* ボタンも少し浮かせる */
 }
 
-/* 記録して送信 */
 #sendBtn {
     width: 100%;
     background-color: black;
     color: white;
     padding: 15px;
     border: none;
-    border-radius: 10px;
-    font-size: 20px;
+    border-radius: 15px;
     font-weight: bold;
-    cursor: pointer;
-    margin-top: 30px;
-    margin-bottom: 5px;
+    margin-top: 10px;
 }
 
 #historyBtn {
-    width: 100%;             
-    color: black;           
-    border: 2px solid black; 
-    padding: 13px;           
-    border-radius: 10px;     
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    margin-top: 10px;        
+    width: 100%;
+    background-color: white;
+    color: black;
+    border: 1.5px solid black;
+    padding: 12px;
+    border-radius: 15px;
+    margin-top: 10px;
 }
 
-/* 区切り線 */
-hr {
-    border: none;
-    border-top: 1px solid #ccc;
-    margin-bottom: 20px;
+/* ★結果表示エリア：崩れ防止 */
+.result-card {
+    background-color: #f1f3f5;
+    padding: 20px;
+    border-radius: 20px;
+    margin-top: 20px;
+    min-height: 100px;
 }
 
-/* AIコーチング分析  */
-.analysis-section h2 {
-    text-align: center;
-    font-size: 24px;
-    margin-bottom: 20px;
+.result-message {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #495057;
+    text-align: left; /* 長文は見やすく左寄せ */
+    word-break: break-all; /* 英数字が長くても強制折り返し */
+    overflow-wrap: break-word; /* 日本語の長文を折り返し */
 }
 
-/* 鬼と天使を横並びにする箱 */
+/* コーチボタン */
 .coach-buttons {
-    display: flex; /* これで横並びに */
+    display: flex;
     gap: 10px;
-    margin-bottom: 20px;
 }
-/* ボタンの設定 */
+
 .coach-buttons button {
-    flex: 1;       /* 幅を均等にしたい */
+    flex: 1;
     padding: 12px;
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
     color: white;
     font-weight: bold;
-    cursor: pointer;
-    font-size: 15px;
 }
 
-/* 色分け */
-#analyze-oniBtn { background-color: #cd5858; } 
-#analyze-tenshiBtn { background-color: #4ca04f; } 
-
-/*アドバイス枠 */
-.result-card {
-    background-color: #e0e0e0; /* 入力欄と同じグレー */
-    padding: 20px;
-    border-radius: 10px;
-    min-height: 80px;
-    /* 中の文字を真ん中に */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: #555;
-}
+#analyze-oniBtn { background-color: #ef4444; }
+#analyze-tenshiBtn { background-color: #4ade80; }
